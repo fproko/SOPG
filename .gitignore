@@ -54,3 +54,4 @@ dkms.conf
 *.txt
 myfifo
 .vscode
+TP2/firmware_v2
