@@ -1,25 +1,25 @@
 import socket
 import sys
 import time
-import thread
+import _thread
 import datetime
 import os
 
 def checkFiles():
 	if not os.path.exists('/tmp/out0.txt'):
-    		fp = open("/tmp/out0.txt","w+")
+		fp = open("/tmp/out0.txt", "w+")
 		fp.write("0")
 		fp.close()
 	if not os.path.exists('/tmp/out1.txt'):
-    		fp = open("/tmp/out1.txt","w+")
+		fp = open("/tmp/out1.txt", "w+")
 		fp.write("0")
 		fp.close()
 	if not os.path.exists('/tmp/out2.txt'):
-    		fp = open("/tmp/out2.txt","w+")
+		fp = open("/tmp/out2.txt", "w+")
 		fp.write("0")
 		fp.close()
 	if not os.path.exists('/tmp/out3.txt'):
-    		fp = open("/tmp/out3.txt","w+")
+		fp = open("/tmp/out3.txt", "w+")
 		fp.write("0")
 		fp.close()
 
