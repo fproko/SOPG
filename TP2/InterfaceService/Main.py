@@ -1,7 +1,7 @@
 import socket
 import sys
 import time
-import _thread
+import thread
 import datetime
 import os
 
@@ -40,13 +40,13 @@ def readOutState(outNumber):
 def toggleLineState(lineNumber):
 	st = readOutState(lineNumber)
 	if st=="0":
-		print("Nuevo estado de linea:"+str(lineNumber)+" es:1")
+		print("Nuevo estado de linea:"+str(lineNumber)+" es:1\n")
 		writeOutState(int(lineNumber),"1")
 	elif st=="1":
-		print("Nuevo estado de linea:"+str(lineNumber)+" es:2")
+		print("Nuevo estado de linea:"+str(lineNumber)+" es:2\n")
 		writeOutState(int(lineNumber),"2")
 	else:
-		print("Nuevo estado de linea:"+str(lineNumber)+" es:0")
+		print("Nuevo estado de linea:"+str(lineNumber)+" es:0\n")
 		writeOutState(int(lineNumber),"0")
 
 def sendLinesStates(sock):
@@ -55,29 +55,29 @@ def sendLinesStates(sock):
 	o2 = readOutState(2)
 	o3 = readOutState(3)
 	p = ":STATES"+o0+o1+o2+o3+"\n"
-	print("envio '"+p+"'")
+	print("Envio por el socket: "+p)
 	sock.send(p)
 
 
 def rcvThread(sock):
 	global socketOk
 	global outChanged
-	print("INICIO thread recepcion")
+	print("INICIO thread recepcion\n")
 	while True:
 		data = sock.recv(128)
 		if len(data)==0:
-			print("Se cerro la conexion")
+			print("Se cerro la conexion\n")
 			break
-		print("LLEGO:"+data)
+		print("Llego por el socket: "+data)
 		try:
 			data = data.split(":LINE")
-			data = data[1].split("TG\n")
-			print(data[0])
+			data = data[1].split("TG")
+			print(data[0]+"\n")
 			lineNumber = int(data[0])
 			toggleLineState(lineNumber)
 			outChanged=True
 		except:
-			print("error enla trama")
+			print("Error en la trama recibida\n")
 
 	print("FIN thread recepcion")
 	socketOk=False
@@ -90,7 +90,7 @@ while True:
 		# Creo TCP/IP socket
 		sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		server_address = ('127.0.0.1', 10000)
-		print >>sys.stderr, 'connecting to %s port %s' % server_address
+		print >>sys.stderr, 'Connecting to %s port %s\n' % server_address
 		sock.connect(server_address)
 		socketOk=True
 		# Creo thread para escuchar paquetes
@@ -125,4 +125,4 @@ while True:
 
 	except:			
 		time.sleep(1)
-		print("Socket invalido, reintento...")
+		print("Socket invalido, reintento...\n")
