@@ -50,7 +50,7 @@ void bloquearSign(void)
 		perror("Error en sigemptyset bloquear");
 		exit(1);
 	}
-	if (sigaddset(&set, SIGINT) == -1 && sigaddset(&set, SIGTERM) == -1) //Se agregan señales al set.
+	if (sigaddset(&set, SIGINT) == -1 || sigaddset(&set, SIGTERM) == -1) //Se agregan señales al set.
 	{
 		perror("Error en sigaddset bloquear");
 		exit(1);
@@ -75,7 +75,7 @@ void desbloquearSign(void)
 		perror("Error en sigemptyset desbloquear");
 		exit(1);
 	}
-	if (sigaddset(&set, SIGINT) == -1 && sigaddset(&set, SIGTERM) == -1)
+	if (sigaddset(&set, SIGINT) == -1 || sigaddset(&set, SIGTERM) == -1)
 	{
 		perror("Error en sigaddset desbloquear");
 		exit(1);
@@ -148,6 +148,7 @@ void *tcp_thread_handler(void *message)
 	char key[KEYS];					//Pulsadores
 
 	printf("%s\n", (const char *)message); //Imprime por consola el parámetro que recibio, previamente lo castea.
+	printf("Id del proceso:%d\n", getpid());
 
 	//Se crea socket de internet tipo stream. Socket() devuelve un FD.
 	if ((fd = socket(PF_INET, SOCK_STREAM, 0)) == -1)
@@ -278,13 +279,13 @@ int main(void)
 	sa1.sa_flags = 0;
 	sa2.sa_flags = 0;
 	//Se coloca la máscara en 0 utilizando la función sigemptyset.
-	if (sigemptyset(&sa1.sa_mask) == -1 && sigemptyset(&sa2.sa_mask) == -1)
+	if (sigemptyset(&sa1.sa_mask) == -1 || sigemptyset(&sa2.sa_mask) == -1)
 	{
 		perror("sigemptyset");
 		exit(1);
 	}
 	//Se llama a sigaction pasandole el número de señal a escuchar.
-	if (sigaction(SIGINT, &sa1, NULL) == -1 && (sigaction(SIGTERM, &sa2, NULL) == -1))
+	if (sigaction(SIGINT, &sa1, NULL) == -1 || sigaction(SIGTERM, &sa2, NULL) == -1)
 	{
 		perror("sigaction");
 		exit(1);
