@@ -33,9 +33,13 @@
 #define SIGN_INT "LLegó señal SIGINT\n"
 #define SIGN_TERM "LLegó señal SIGTERM\n"
 #define STDOUT 1
-int fd;				  //File descriptor del socket servidor.
-int newfd;			  //Nuevo FD del socket que representa la conexión con el cliente.
-pthread_t tcp_thread; //Handle de thread secundario.
+#define CONNECTED 1
+#define DISCONNECTED 0
+int fd;												   //File descriptor del socket servidor.
+int newfd;											   //Nuevo FD del socket que representa la conexión con el cliente.
+pthread_t tcp_thread;								   //Handle de thread secundario.
+pthread_mutex_t mutexData = PTHREAD_MUTEX_INITIALIZER; //Mutex
+int client_state;
 
 /**
  * @brief Bloquea señales configuradas.
@@ -119,12 +123,12 @@ void signal_handler(int sig)
 	//Se cierran los sockets.
 	if (close(newfd) == -1)
 	{
-		perror("Error al cerra newfd");
+		perror("Error al cerrar newfd");
 		exit(1);
 	}
 	if (close(fd) == -1)
 	{
-		perror("Error al cerra fd");
+		perror("Error al cerrar fd");
 		exit(1);
 	}
 	exit(EXIT_SUCCESS);
@@ -172,7 +176,7 @@ void *tcp_thread_handler(void *message)
 	if (bind(fd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1)
 	{
 		close(fd);
-		perror("Listener: bind");
+		perror("Error en bind");
 		exit(1);
 	}
 
@@ -195,6 +199,12 @@ void *tcp_thread_handler(void *message)
 		{
 			perror("Error en accept");
 			exit(1);
+		}
+		else
+		{
+			pthread_mutex_lock(&mutexData);
+			client_state = CONNECTED;
+			pthread_mutex_unlock(&mutexData);
 		}
 
 		//Se imprimen los datos del cliente.
@@ -249,12 +259,16 @@ void *tcp_thread_handler(void *message)
 		}
 		//Se cierra socket asociado con el cliente y se vuelve al inicio del while.
 		printf("Server: cliente %s cerró la conexión\n", ipClient);
+		
+		pthread_mutex_lock(&mutexData);
+		client_state = DISCONNECTED;
 		if (close(newfd) == -1)
 		{
-			perror("Error al cerra newfd");
+			perror("Error al cerrar newfd");
 			exit(1);
 		}
-		newfd = 0;
+		newfd=0;
+		pthread_mutex_unlock(&mutexData);
 	}
 	return NULL;
 }
@@ -315,7 +329,7 @@ int main(void)
 	while (1)
 	{
 		bytesRead = serial_receive(mainBuffer, sizeof(mainBuffer));
-		if (bytesRead > 0 && newfd > 0)
+		if (bytesRead > 0)
 		{
 			printf("LLegó por el puerto serie: %.*s\n", bytesRead, mainBuffer);
 			if (sscanf(mainBuffer, ">TOGGLE STATE:%c\r\n", &key) == ONE_DATA)
@@ -327,16 +341,21 @@ int main(void)
 					bytesPrint = snprintf(mainBuffer, sizeof(mainBuffer), ":LINE%cTG\n", key);
 					if (bytesPrint > 0)
 					{
-						//Se envia por el socket trama ':LINEXTG\n'.
-						if ((bytesSend = send(newfd, mainBuffer, bytesPrint, 0)) == -1)
+						pthread_mutex_lock(&mutexData);
+						if (client_state == CONNECTED)
 						{
-							perror("Error escribiendo mensaje en socket");
-							exit(1);
+							//Se envia por el socket trama ':LINEXTG\n'.
+							if ((bytesSend = send(newfd, mainBuffer, bytesPrint, 0)) == -1)
+							{
+								perror("Error escribiendo mensaje en socket");
+								exit(1);
+							}
+							else
+							{
+								printf("Envio por el socket %d bytes: %s\n", bytesSend, mainBuffer);
+							}
 						}
-						else
-						{
-							printf("Envio por el socket %d bytes: %s\n", bytesSend, mainBuffer);
-						}
+						pthread_mutex_unlock(&mutexData);
 					}
 					else
 					{
