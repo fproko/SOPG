@@ -36,13 +36,15 @@
 #define CONNECTED 1
 #define DISCONNECTED 0
 #define ERROR -1
+#define TRUE 1
+#define FALSE 0
 
 int fd;												   //File descriptor del socket servidor.
 int newfd;											   //Nuevo FD del socket que representa la conexión con el cliente.
 pthread_t tcpThread;								   //Handle de thread secundario.
 pthread_mutex_t mutexData = PTHREAD_MUTEX_INITIALIZER; //Mutex
 int clientState;									   //Estado del cliente.
-int client_state;
+volatile sig_atomic_t signFlag = FALSE;				   //Flag de llegada de señal.
 
 /**
  * @brief Bloquea señales configuradas.
@@ -109,32 +111,7 @@ void signal_handler(int sig)
 	{
 		write(STDOUT, SIGN_INT, strlen(SIGN_INT)); //Write es de bajo nivel.
 	}
-
-	//Se cancela thread secundario.
-	pthread_cancel(tcp_thread);
-
-	//Se espera por finalización de tcp_thread.
-	if (pthread_join(tcp_thread, NULL) != 0)
-	{
-		perror("Error en tcp_thread");
-		exit(1);
-	}
-
-	//Se cierra comunicación serial.
-	serial_close();
-
-	//Se cierran los sockets.
-	if (close(newfd) == -1)
-	{
-		perror("Error al cerrar newfd");
-		exit(1);
-	}
-	if (close(fd) == -1)
-	{
-		perror("Error al cerrar fd");
-		exit(1);
-	}
-	exit(EXIT_SUCCESS);
+	signFlag = TRUE;
 }
 
 /**
@@ -262,10 +239,10 @@ void *tcp_thread_handler(void *message)
 		}
 		//Se cierra socket asociado con el cliente y se vuelve al inicio del while.
 		printf("Server: cliente %s cerró la conexión\n", ipClient);
-		
+
 		pthread_mutex_lock(&mutexData);
-		client_state = DISCONNECTED;
-		if (close(newfd) == -1)
+		clientState = DISCONNECTED;
+		if (close(newfd) == ERROR)
 		{
 			perror("Error al cerrar newfd");
 			exit(1);
@@ -328,7 +305,7 @@ int main(void)
 	//Se desbloquean señales para que las maneje thread principal.
 	desbloquearSign();
 
-	while (1)
+	while (!signFlag)
 	{
 		bytesRead = serial_receive(mainBuffer, sizeof(mainBuffer));
 		if (bytesRead > 0)
@@ -368,5 +345,34 @@ int main(void)
 		}
 		usleep(100000); //100 ms
 	}
+
+	//Se cancela thread secundario.
+	pthread_cancel(tcpThread);
+
+	//Se espera por finalización de tcpThread.
+	if (pthread_join(tcpThread, NULL) != 0)
+	{
+		perror("Error en tcpThread");
+		exit(1);
+	}
+
+	//Se cierra comunicación serial.
+	serial_close();
+
+	//Se cierran los sockets.
+	if (clientState == CONNECTED)
+	{
+		if (close(newfd) == ERROR)
+		{
+			perror("Error al cerrar newfd");
+			exit(1);
+		}
+	}
+	if (close(fd) == ERROR)
+	{
+		perror("Error al cerrar fd");
+		exit(1);
+	}
+
 	return 0;
 }
