@@ -35,10 +35,13 @@
 #define STDOUT 1
 #define CONNECTED 1
 #define DISCONNECTED 0
+#define ERROR -1
+
 int fd;												   //File descriptor del socket servidor.
 int newfd;											   //Nuevo FD del socket que representa la conexión con el cliente.
-pthread_t tcp_thread;								   //Handle de thread secundario.
+pthread_t tcpThread;								   //Handle de thread secundario.
 pthread_mutex_t mutexData = PTHREAD_MUTEX_INITIALIZER; //Mutex
+int clientState;									   //Estado del cliente.
 int client_state;
 
 /**
@@ -49,12 +52,12 @@ void bloquearSign(void)
 {
 	sigset_t set;
 	int s;
-	if (sigemptyset(&set) == -1) //Se inicializa en vacio.
+	if (sigemptyset(&set) == ERROR) //Se inicializa en vacio.
 	{
 		perror("Error en sigemptyset bloquear");
 		exit(1);
 	}
-	if (sigaddset(&set, SIGINT) == -1 || sigaddset(&set, SIGTERM) == -1) //Se agregan señales al set.
+	if (sigaddset(&set, SIGINT) == ERROR || sigaddset(&set, SIGTERM) == ERROR) //Se agregan señales al set.
 	{
 		perror("Error en sigaddset bloquear");
 		exit(1);
@@ -74,12 +77,12 @@ void desbloquearSign(void)
 {
 	sigset_t set;
 	int s;
-	if (sigemptyset(&set) == -1) //Se inicializa en vacio.
+	if (sigemptyset(&set) == ERROR) //Se inicializa en vacio.
 	{
 		perror("Error en sigemptyset desbloquear");
 		exit(1);
 	}
-	if (sigaddset(&set, SIGINT) == -1 || sigaddset(&set, SIGTERM) == -1)
+	if (sigaddset(&set, SIGINT) == ERROR || sigaddset(&set, SIGTERM) == ERROR)
 	{
 		perror("Error en sigaddset desbloquear");
 		exit(1);
@@ -135,7 +138,7 @@ void signal_handler(int sig)
 }
 
 /**
- * @brief Handler de tcp_thread que se encarga de crear el socket, aceptar conexiones, de recibir por el socket y de enviar por el puerto serie.
+ * @brief Handler de tcpThread que se encarga de crear el socket, aceptar conexiones, de recibir por el socket y de enviar por el puerto serie.
  * 
  * @param message 
  * @return void* 
@@ -155,7 +158,7 @@ void *tcp_thread_handler(void *message)
 	printf("Id del proceso:%d\n", getpid());
 
 	//Se crea socket de internet tipo stream. Socket() devuelve un FD.
-	if ((fd = socket(PF_INET, SOCK_STREAM, 0)) == -1)
+	if ((fd = socket(PF_INET, SOCK_STREAM, 0)) == ERROR)
 	{
 		perror("Error al crear socket");
 		exit(1);
@@ -173,7 +176,7 @@ void *tcp_thread_handler(void *message)
 	}
 
 	//Se abre puerto con bind(). Asigna una dirección local al socket.
-	if (bind(fd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1)
+	if (bind(fd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == ERROR)
 	{
 		close(fd);
 		perror("Error en bind");
@@ -181,7 +184,7 @@ void *tcp_thread_handler(void *message)
 	}
 
 	//Se configura socket en modo Listening.
-	if (listen(fd, BACKLOG_SIZE) == -1)
+	if (listen(fd, BACKLOG_SIZE) == ERROR)
 	{
 		perror("Error en listen");
 		exit(1);
@@ -195,7 +198,7 @@ void *tcp_thread_handler(void *message)
 		//Se ejecuta accept(). Se queda bloqueado hasta recibir una solicitud de conexión en la cola.
 		//Devuelve un nuevo FD que representa conexión con cliente y la cantidad de bytes que escribió en la estructura.
 		newfd = accept(fd, (struct sockaddr *)&clientAddr, &addrLen);
-		if (newfd == -1)
+		if (newfd == ERROR)
 		{
 			perror("Error en accept");
 			exit(1);
@@ -203,7 +206,7 @@ void *tcp_thread_handler(void *message)
 		else
 		{
 			pthread_mutex_lock(&mutexData);
-			client_state = CONNECTED;
+			clientState = CONNECTED;
 			pthread_mutex_unlock(&mutexData);
 		}
 
@@ -215,7 +218,7 @@ void *tcp_thread_handler(void *message)
 		{
 			//Se leen datos del socket. Se queda bloqueado hasta que cliente envie algo por el socket.
 			bytesRead = recv(newfd, threadBuffer, sizeof(threadBuffer), 0);
-			if (bytesRead == -1)
+			if (bytesRead == ERROR)
 			{
 				perror("Error al leer mensaje del socket");
 				exit(1);
@@ -267,14 +270,13 @@ void *tcp_thread_handler(void *message)
 			perror("Error al cerrar newfd");
 			exit(1);
 		}
-		newfd=0;
 		pthread_mutex_unlock(&mutexData);
 	}
 	return NULL;
 }
 
 /**
- * @brief Función principal que se encarga crear el tcp_thread, de recibir por el puerto serie y de enviar por el socket.
+ * @brief Función principal que se encarga crear el tcpThread, de recibir por el puerto serie y de enviar por el socket.
  * 
  * @return int 
  */
@@ -293,13 +295,13 @@ int main(void)
 	sa1.sa_flags = 0;
 	sa2.sa_flags = 0;
 	//Se coloca la máscara en 0 utilizando la función sigemptyset.
-	if (sigemptyset(&sa1.sa_mask) == -1 || sigemptyset(&sa2.sa_mask) == -1)
+	if (sigemptyset(&sa1.sa_mask) == ERROR || sigemptyset(&sa2.sa_mask) == ERROR)
 	{
 		perror("sigemptyset");
 		exit(1);
 	}
 	//Se llama a sigaction pasandole el número de señal a escuchar.
-	if (sigaction(SIGINT, &sa1, NULL) == -1 || sigaction(SIGTERM, &sa2, NULL) == -1)
+	if (sigaction(SIGINT, &sa1, NULL) == ERROR || sigaction(SIGTERM, &sa2, NULL) == ERROR)
 	{
 		perror("sigaction");
 		exit(1);
@@ -317,8 +319,8 @@ int main(void)
 
 	const char *message1 = "Inicio TCP Service\n";
 
-	//Se crea tcp_thread con señales bloqueadas.
-	if (pthread_create(&tcp_thread, NULL, tcp_thread_handler, (void *)message1) != 0)
+	//Se crea tcpThread con señales bloqueadas.
+	if (pthread_create(&tcpThread, NULL, tcp_thread_handler, (void *)message1) != 0)
 	{
 		perror("Error al crear tcp thread");
 	}
@@ -342,10 +344,10 @@ int main(void)
 					if (bytesPrint > 0)
 					{
 						pthread_mutex_lock(&mutexData);
-						if (client_state == CONNECTED)
+						if (clientState == CONNECTED)
 						{
 							//Se envia por el socket trama ':LINEXTG\n'.
-							if ((bytesSend = send(newfd, mainBuffer, bytesPrint, 0)) == -1)
+							if ((bytesSend = send(newfd, mainBuffer, bytesPrint, 0)) == ERROR)
 							{
 								perror("Error escribiendo mensaje en socket");
 								exit(1);
